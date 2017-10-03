@@ -10,13 +10,14 @@
         <script>
 
             var encrypt = function (data, callback) {
-                crypto.subtle.generateKey({name: "AES-CBC", length: 256}, true, ["encrypt", "decrypt"]).then(function(key) {
-                    crypto.subtle.exportKey("jwk", key).then(function(keydata) {
+                crypto.subtle.generateKey({name: "AES-CBC", length: 256}, true, ["encrypt", "decrypt"]).then(function (key) {
+                    crypto.subtle.exportKey("jwk", key).then(function (keydata) {
                         iv = crypto.getRandomValues(new Uint8Array(16));
-                        crypto.subtle.encrypt({name: "AES-CBC", iv: iv}, key, data).then(function(encrypted) {
+                        crypto.subtle.encrypt({name: "AES-CBC", iv: iv}, key, data).then(function (encrypted) {
                             var ciphertext = new Uint8Array(iv.byteLength + encrypted.byteLength);
                             ciphertext.set(new Uint8Array(iv), 0);
                             ciphertext.set(new Uint8Array(encrypted), iv.byteLength);
+                            console.log("data encrypted");
                             callback(keydata.k, ciphertext);
                         });
                     });
@@ -24,22 +25,45 @@
             }
 
             var decrypt = function (key, encrypted, callback) {
-                crypto.subtle.importKey("jwk", {kty: "oct", k: key, alg: "A256CBC", ext: true}, {name: "AES-CBC"}, false, ["encrypt", "decrypt"]).then(function(aeskey) {
-                    window.crypto.subtle.decrypt({name: "AES-CBC", iv: encrypted.slice(0, 16)}, aeskey, encrypted.slice(16)).then(function(decrypted) {
+                crypto.subtle.importKey("jwk", {kty: "oct", k: key, alg: "A256CBC", ext: true}, {name: "AES-CBC"}, false, ["encrypt", "decrypt"]).then(function (aeskey) {
+                    window.crypto.subtle.decrypt({name: "AES-CBC", iv: encrypted.slice(0, 16)}, aeskey, encrypted.slice(16)).then(function (decrypted) {
+                        console.log("data decrypted");
                         callback(decrypted);
                     });
                 });
+            }
+
+            var send = function (id, data, callback) {
+                var xhr = new XMLHttpRequest();
+                xhr.open("POST", "/" + id, true);
+                xhr.onload = function (event) {
+                    console.log("file sent");
+                };
+                xhr.send(data);
+            }
+
+            var receive = function (id, callback) {
+                var xhr = new XMLHttpRequest();
+                xhr.open("GET", "/" + id, true);
+                xhr.responseType = "arraybuffer";
+                xhr.onload = function (event) {
+                    console.log("file received");
+                    callback(xhr.response);
+                };
+                xhr.send(null);
             }
 
             document.getElementById('file').addEventListener('change', readFile, false);
             
             function readFile (evt) {
                 var reader = new FileReader();
-                reader.onload = function(event) {
+                reader.onload = function (event) {
+                    // console.log(new Uint8Array(event.target.result));
                     encrypt(event.target.result, function (key, encrypted) {
-                        //console.log(keydata.k);
-                        //console.log(ciphertext);
-                        decrypt(key, encrypted);
+                        // console.log(new Uint8Array(encrypted));
+                        decrypt(key, encrypted, function (decrypted) {
+                            // console.log(new Uint8Array(decrypted));
+                        });
                     });
                 }
                 reader.readAsArrayBuffer(evt.target.files[0]);
