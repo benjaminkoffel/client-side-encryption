@@ -1,0 +1,50 @@
+<html>
+    <head>
+        <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+        <meta content="utf-8" http-equiv="encoding">
+    </head>
+    <body>
+        <div>
+            <input type="file" id="file" name="file" enctype="multipart/form-data" />
+        </div>
+        <script>
+
+            var encrypt = function (data, callback) {
+                crypto.subtle.generateKey({name: "AES-CBC", length: 256}, true, ["encrypt", "decrypt"]).then(function(key) {
+                    crypto.subtle.exportKey("jwk", key).then(function(keydata) {
+                        iv = crypto.getRandomValues(new Uint8Array(16));
+                        crypto.subtle.encrypt({name: "AES-CBC", iv: iv}, key, data).then(function(encrypted) {
+                            var ciphertext = new Uint8Array(iv.byteLength + encrypted.byteLength);
+                            ciphertext.set(new Uint8Array(iv), 0);
+                            ciphertext.set(new Uint8Array(encrypted), iv.byteLength);
+                            callback(keydata.k, ciphertext);
+                        });
+                    });
+                })
+            }
+
+            var decrypt = function (key, encrypted, callback) {
+                crypto.subtle.importKey("jwk", {kty: "oct", k: key, alg: "A256CBC", ext: true}, {name: "AES-CBC"}, false, ["encrypt", "decrypt"]).then(function(aeskey) {
+                    window.crypto.subtle.decrypt({name: "AES-CBC", iv: encrypted.slice(0, 16)}, aeskey, encrypted.slice(16)).then(function(decrypted) {
+                        callback(decrypted);
+                    });
+                });
+            }
+
+            document.getElementById('file').addEventListener('change', readFile, false);
+            
+            function readFile (evt) {
+                var reader = new FileReader();
+                reader.onload = function(event) {
+                    encrypt(event.target.result, function (key, encrypted) {
+                        //console.log(keydata.k);
+                        //console.log(ciphertext);
+                        decrypt(key, encrypted);
+                    });
+                }
+                reader.readAsArrayBuffer(evt.target.files[0]);
+            }
+
+        </script>
+    </body>
+</html>
